@@ -4,17 +4,20 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let model = PetModel()
     private let oauthClient = GitHubOAuthClient()
+    private let desktopBooHotKey = GlobalHotKey()
     private lazy var persistentTouchBar = PersistentTouchBarController(model: model)
     private lazy var desktopPet = DesktopPetController(model: model)
     private var window: NSWindow?
     private var statusItem: NSStatusItem?
     private var githubAccountItem: NSMenuItem?
     private var authenticationTask: Task<Void, Never>?
+    nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         NSApp.isAutomaticCustomizeTouchBarMenuItemEnabled = true
         installMenuBarItem()
+        installGlobalHotKey()
         _ = persistentTouchBar.install()
         model.start()
         restoreGitHubLogin()
@@ -24,6 +27,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         authenticationTask?.cancel()
+        desktopBooHotKey.unregister()
+        observers.forEach(NotificationCenter.default.removeObserver)
         persistentTouchBar.uninstall()
     }
 
@@ -109,7 +114,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.title = "👻"
         let menu = NSMenu()
-        menu.addItem(withTitle: "Show or hide desktop Boo", action: #selector(toggleDesktopBoo), keyEquivalent: "b")
+        let desktopItem = menu.addItem(
+            withTitle: "Show or hide desktop Boo",
+            action: #selector(toggleDesktopBoo),
+            keyEquivalent: "b"
+        )
+        desktopItem.keyEquivalentModifierMask = [.control, .option]
         menu.addItem(withTitle: "Open dashboard", action: #selector(showWindow), keyEquivalent: "d")
         menu.addItem(withTitle: "Reinstall Touch Bar Boo", action: #selector(reinstallTouchBar), keyEquivalent: "t")
         menu.addItem(withTitle: "Restore persistent Boo", action: #selector(restorePersistentBoo), keyEquivalent: "p")
@@ -128,6 +138,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         menu.items.forEach { $0.target = self }
         item.menu = menu
         statusItem = item
+    }
+
+    private func installGlobalHotKey() {
+        observers.append(NotificationCenter.default.addObserver(
+            forName: .toggleDesktopBooHotKey,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.toggleDesktopBoo() }
+        })
+        if !desktopBooHotKey.register() {
+            desktopBooHotKey.unregister()
+        }
     }
 
     private func restoreGitHubLogin() {

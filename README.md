@@ -36,6 +36,9 @@ The app starts without a Dock icon. From the 👻 menu, choose **Show or hide
 desktop Boo** to toggle the floating companion. The dashboard temporarily shows
 the app in the Dock while it is open and hides it again when closed.
 
+Press **Control–Option–B** from any application to show or hide desktop Boo. The
+shortcut is registered system-wide and does not require Accessibility access.
+
 Desktop Boo floats over other windows, can be dragged by its transparent window,
 and shows timed message bubbles for new public GitHub activity. Clicking Boo
 shows the latest activity message; clicking Boo again dismisses the bubble.
