@@ -29,7 +29,8 @@ Apple can change or remove those APIs in a future macOS release, and an app usin
 them is not suitable for the Mac App Store.
 
 Tap the persistent Boo logo to open the full bar. Use the 👻 menu-bar menu to
-restore or hide it.
+restore or hide it. In the expanded bar, tap **‹ 👻** to collapse back to the
+compact Control Strip Boo.
 
 The app starts without a Dock icon. From the 👻 menu, choose **Show or hide
 desktop Boo** to toggle the floating companion. The dashboard temporarily shows
@@ -37,7 +38,7 @@ the app in the Dock while it is open and hides it again when closed.
 
 Desktop Boo floats over other windows, can be dragged by its transparent window,
 and shows timed message bubbles for new public GitHub activity. Clicking Boo
-replays the latest activity message.
+shows the latest activity message; clicking Boo again dismisses the bubble.
 
 GitHub's public events API does not require login, but GitHub documents that its
 events can lag by 30 seconds to six hours. Connecting GitHub lets Boo read your

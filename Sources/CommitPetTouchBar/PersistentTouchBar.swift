@@ -47,11 +47,19 @@ final class PersistentTouchBarController: NSObject {
     }
 
     @objc func showExpandedBar() {
-        let controller = PetTouchBarController(model: model)
+        let controller = PetTouchBarController(model: model) { [weak self] in
+            self?.collapseExpandedBar()
+        }
         let bar = controller.makeTouchBar()
         expandedController = controller
         expandedBar = bar
         _ = CPTouchBarPresentSystemModal(bar, Self.trayIdentifier.rawValue)
     }
 
+    func collapseExpandedBar() {
+        guard let expandedBar else { return }
+        CPTouchBarDismissSystemModal(expandedBar)
+        self.expandedBar = nil
+        expandedController = nil
+    }
 }

@@ -2,19 +2,22 @@ import AppKit
 
 @MainActor
 final class PetTouchBarController: NSObject, NSTouchBarDelegate {
+    static let collapseIdentifier = NSTouchBarItem.Identifier("dev.commitpet.touchbar.collapse")
     static let petIdentifier = NSTouchBarItem.Identifier("dev.commitpet.touchbar.pet")
     static let statsIdentifier = NSTouchBarItem.Identifier("dev.commitpet.touchbar.stats")
     static let activityIdentifier = NSTouchBarItem.Identifier("dev.commitpet.touchbar.activity")
     static let refreshIdentifier = NSTouchBarItem.Identifier("dev.commitpet.touchbar.refresh")
 
     private let model: PetModel
+    private let onCollapse: (() -> Void)?
     private let ghostView = PixelGhostView(frame: NSRect(x: 0, y: 0, width: 110, height: 30))
     private let statsLabel = NSTextField(labelWithString: "")
     private let activityLabel = NSTextField(labelWithString: "")
     nonisolated(unsafe) private var observer: NSObjectProtocol?
 
-    init(model: PetModel) {
+    init(model: PetModel, onCollapse: (() -> Void)? = nil) {
         self.model = model
+        self.onCollapse = onCollapse
         super.init()
         ghostView.isCompact = true
         observer = NotificationCenter.default.addObserver(
@@ -35,15 +38,28 @@ final class PetTouchBarController: NSObject, NSTouchBarDelegate {
         let bar = NSTouchBar()
         bar.delegate = self
         bar.customizationIdentifier = NSTouchBar.CustomizationIdentifier("dev.commitpet.touchbar")
-        bar.defaultItemIdentifiers = [Self.petIdentifier, Self.statsIdentifier, Self.activityIdentifier, .flexibleSpace, Self.refreshIdentifier]
+        var identifiers: [NSTouchBarItem.Identifier] = []
+        if onCollapse != nil { identifiers.append(Self.collapseIdentifier) }
+        identifiers += [Self.petIdentifier, Self.statsIdentifier, Self.activityIdentifier, .flexibleSpace, Self.refreshIdentifier]
+        bar.defaultItemIdentifiers = identifiers
         bar.customizationAllowedItemIdentifiers = bar.defaultItemIdentifiers
-        bar.customizationRequiredItemIdentifiers = [Self.petIdentifier, Self.statsIdentifier]
+        bar.customizationRequiredItemIdentifiers = onCollapse == nil
+            ? [Self.petIdentifier, Self.statsIdentifier]
+            : [Self.collapseIdentifier, Self.petIdentifier, Self.statsIdentifier]
         bar.principalItemIdentifier = Self.petIdentifier
         return bar
     }
 
     func touchBar(_ touchBar: NSTouchBar, makeItemForIdentifier identifier: NSTouchBarItem.Identifier) -> NSTouchBarItem? {
         switch identifier {
+        case Self.collapseIdentifier:
+            let item = NSCustomTouchBarItem(identifier: identifier)
+            let button = NSButton(title: "‹ 👻", target: self, action: #selector(collapse))
+            button.toolTip = "Collapse Commit Pet"
+            item.view = button
+            item.customizationLabel = "Collapse Commit Pet"
+            return item
+
         case Self.petIdentifier:
             let item = NSCustomTouchBarItem(identifier: identifier)
             let button = NSButton(title: "", target: self, action: #selector(petBoo))
@@ -103,6 +119,10 @@ final class PetTouchBarController: NSObject, NSTouchBarDelegate {
 
     @objc private func refresh() {
         Task { await model.refresh() }
+    }
+
+    @objc private func collapse() {
+        onCollapse?()
     }
 }
 

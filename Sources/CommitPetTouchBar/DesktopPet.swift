@@ -56,6 +56,7 @@ final class DesktopPetView: NSView {
     private let messageLabel = NSTextField(wrappingLabelWithString: "")
     private var hideWorkItem: DispatchWorkItem?
     private var bubbleSize = NSSize.zero
+    private var bubbleRevision = 0
     var onPet: (() -> Void)?
     var onPreferredSizeChange: ((NSSize, Bool) -> Void)?
 
@@ -120,6 +121,8 @@ final class DesktopPetView: NSView {
 
     func showMessage(_ message: String, duration: TimeInterval = 12) {
         hideWorkItem?.cancel()
+        bubbleRevision += 1
+        let revision = bubbleRevision
         messageLabel.stringValue = message
         bubbleSize = measuredBubbleSize(for: message)
         bubble.isHidden = false
@@ -132,20 +135,30 @@ final class DesktopPetView: NSView {
         needsLayout = true
 
         let workItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.28
-                self.bubble.animator().alphaValue = 0
-            } completionHandler: { [weak self] in
-                Task { @MainActor in
-                    guard let self else { return }
-                    self.bubble.isHidden = true
-                    self.onPreferredSizeChange?(Layout.petOnlySize, true)
-                }
-            }
+            self?.dismissMessage(ifRevision: revision)
         }
         hideWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: workItem)
+    }
+
+    func dismissMessage() {
+        hideWorkItem?.cancel()
+        bubbleRevision += 1
+        dismissMessage(ifRevision: bubbleRevision)
+    }
+
+    private func dismissMessage(ifRevision revision: Int) {
+        guard !bubble.isHidden, revision == bubbleRevision else { return }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.22
+            bubble.animator().alphaValue = 0
+        } completionHandler: { [weak self] in
+            Task { @MainActor in
+                guard let self, revision == self.bubbleRevision else { return }
+                self.bubble.isHidden = true
+                self.onPreferredSizeChange?(Layout.petOnlySize, true)
+            }
+        }
     }
 
     private func measuredBubbleSize(for message: String) -> NSSize {
@@ -163,6 +176,10 @@ final class DesktopPetView: NSView {
     }
 
     @objc private func petClicked() {
+        if !bubble.isHidden {
+            dismissMessage()
+            return
+        }
         celebrate()
         onPet?()
     }
