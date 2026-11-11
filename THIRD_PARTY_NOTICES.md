@@ -1,6 +1,7 @@
 # Third-party notices
 
-The Commit Pet concept and contribution-stat model are adapted from
+The Commit Pet concept, the pixel pet art in `profile-card/pets.js` and
+`profile-card/colors.js`, and the profile card layout are adapted from
 [`yukurash/commit-pet`](https://github.com/yukurash/commit-pet), distributed under the MIT License:
 
 > MIT License

@@ -1,0 +1,59 @@
+name: 'GitHub Touch Bar Pet card'
+description: 'Render Boo’s profile card with the same rules as the desktop app and commit it.'
+author: 'silviafeiwang'
+branding:
+  icon: 'smile'
+  color: 'purple'
+
+inputs:
+  username:
+    description: 'GitHub username to read contributions from.'
+    default: ${{ github.repository_owner }}
+  name:
+    description: 'Pet name shown on the card.'
+    default: 'Boo'
+  species:
+    description: 'Pet species: ghost | slime | cat.'
+    default: 'ghost'
+  timezone:
+    description: 'IANA time zone that decides what "today" is, e.g. America/Vancouver.'
+    default: 'UTC'
+  output:
+    description: 'Path of the SVG file to write.'
+    default: 'commit-pet.svg'
+  token:
+    description: 'Token used to read the contribution graph and push the card.'
+    default: ${{ github.token }}
+
+runs:
+  using: 'composite'
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Render card
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}
+      run: |
+        node "${{ github.action_path }}/profile-card/generate.js" \
+          --user "${{ inputs.username }}" \
+          --name "${{ inputs.name }}" \
+          --species "${{ inputs.species }}" \
+          --tz "${{ inputs.timezone }}" \
+          --out "${{ inputs.output }}"
+
+    # Commit straight to the branch; no pull request that can get stuck unmerged.
+    - name: Commit card if it changed
+      shell: bash
+      run: |
+        git add "${{ inputs.output }}"
+        if git diff --cached --quiet; then
+          echo "Card unchanged."
+          exit 0
+        fi
+        git config user.name 'github-actions[bot]'
+        git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+        git commit -m 'Update Boo 👻'
+        git push

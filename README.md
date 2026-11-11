@@ -122,6 +122,33 @@ To check what Boo sees for a profile without launching the app:
 swift run CommitPetTouchBar --print-stats YOUR_GITHUB_USERNAME
 ```
 
+## Profile README card
+
+The repository is also a GitHub Action that draws Boo's card for a profile
+README with exactly the same rules as the desktop app. Add a workflow to your
+`<username>/<username>` repository:
+
+```yaml
+name: Boo
+on:
+  schedule:
+    - cron: "7 * * * *"   # hourly
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  card:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: silviafeiwang/github-touchbar-pet@main
+        with:
+          timezone: America/Vancouver
+```
+
+Then show it with `![Boo](commit-pet.svg)`. Preview locally with
+`GITHUB_TOKEN=$(gh auth token) node profile-card/generate.js --user NAME --tz Area/City`.
+
 ## Roadmap
 
 1. Scheduled morning/evening and weekly Boo reports
