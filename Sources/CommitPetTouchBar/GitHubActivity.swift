@@ -20,16 +20,13 @@ struct GitHubActivitySummary: Equatable, Sendable {
     )
 
     var compactText: String {
-        if let topRepoToday { return "🏆 Today: \(shortName(topRepoToday))" }
-        if let topRepoWeek { return "🏆 Week: \(shortName(topRepoWeek))" }
-        return "No public activity yet"
+        if let topRepoToday { return "Today’s main quest: \(shortName(topRepoToday)) ✨" }
+        if let topRepoWeek { return "This week’s main quest: \(shortName(topRepoWeek))" }
+        return "Boo is waiting for the next public GitHub adventure."
     }
 
     var report: String {
-        let today = topRepoToday.map { "Top today: \(shortName($0)) (\(todayScore))" } ?? "Top today: none"
-        let week = topRepoWeek.map { "Top this week: \(shortName($0)) (\(weekScore))" } ?? "Top this week: none"
-        let latest = latestDescription.map { "Latest: \($0)" } ?? "Latest: no public activity"
-        return "\(today)\n\(week)\n\(latest)"
+        latestDescription ?? compactText
     }
 
     private func shortName(_ fullName: String) -> String {
@@ -44,13 +41,35 @@ protocol GitHubActivityProviding: Sendable {
 private struct GitHubPublicEvent: Decodable, Sendable {
     struct Repository: Decodable, Sendable { let name: String }
     struct Payload: Decodable, Sendable {
+        struct Commit: Decodable, Sendable { let message: String }
+        struct PullRequest: Decodable, Sendable {
+            let title: String?
+            let merged: Bool?
+        }
+        struct Issue: Decodable, Sendable { let title: String? }
+        struct Release: Decodable, Sendable {
+            let name: String?
+            let tagName: String?
+
+            enum CodingKeys: String, CodingKey {
+                case name
+                case tagName = "tag_name"
+            }
+        }
+
         let size: Int?
         let action: String?
         let refType: String?
+        let ref: String?
+        let commits: [Commit]?
+        let pullRequest: PullRequest?
+        let issue: Issue?
+        let release: Release?
 
         enum CodingKeys: String, CodingKey {
-            case size, action
+            case size, action, ref, commits, issue, release
             case refType = "ref_type"
+            case pullRequest = "pull_request"
         }
     }
 
@@ -72,16 +91,72 @@ private struct GitHubPublicEvent: Decodable, Sendable {
     var description: String {
         let repoName = repo.name.split(separator: "/").last.map(String.init) ?? repo.name
         return switch type {
-        case "PushEvent": "Pushed \(score) commit\(score == 1 ? "" : "s") to \(repoName)"
-        case "PullRequestEvent": "\(payload.action?.capitalized ?? "Updated") a pull request in \(repoName)"
-        case "IssuesEvent": "\(payload.action?.capitalized ?? "Updated") an issue in \(repoName)"
-        case "IssueCommentEvent": "Commented in \(repoName)"
-        case "CreateEvent": "Created \(payload.refType ?? "something") in \(repoName)"
-        case "ReleaseEvent": "Published a release in \(repoName)"
-        case "WatchEvent": "Starred \(repoName)"
-        case "ForkEvent": "Forked \(repoName)"
-        default: "Activity in \(repoName)"
+        case "PushEvent": pushDescription(repoName: repoName)
+        case "PullRequestEvent": pullRequestDescription(repoName: repoName)
+        case "IssuesEvent": issueDescription(repoName: repoName)
+        case "IssueCommentEvent": "The conversation in \(repoName) is moving forward."
+        case "CreateEvent": createDescription(repoName: repoName)
+        case "ReleaseEvent": releaseDescription(repoName: repoName)
+        case "WatchEvent": "You found something worth keeping: \(repoName) ⭐"
+        case "ForkEvent": "A new experiment begins with \(repoName)."
+        default: "Something is brewing in \(repoName)."
         }
+    }
+
+    private func pushDescription(repoName: String) -> String {
+        guard let subject = payload.commits?.last?.message
+            .split(whereSeparator: \.isNewline).first.map(String.init), !subject.isEmpty else {
+            return "You moved \(repoName) forward. Boo approves."
+        }
+        let clipped = subject.count > 92 ? String(subject.prefix(89)) + "…" : subject
+        let extra = max(score - 1, 0)
+        if extra > 0 {
+            return "Latest in \(repoName): “\(clipped)” + \(extra) more."
+        }
+        return "Latest in \(repoName): “\(clipped)”"
+    }
+
+    private func pullRequestDescription(repoName: String) -> String {
+        let title = payload.pullRequest?.title.flatMap(nonempty)
+        if payload.pullRequest?.merged == true {
+            return title.map { "Shipped in \(repoName): “\($0)” 🎉" }
+                ?? "Something just shipped in \(repoName) 🎉"
+        }
+        if payload.action == "closed" {
+            return title.map { "Closed the loop in \(repoName): “\($0)”" }
+                ?? "Closed the loop on something in \(repoName)."
+        }
+        return title.map { "Taking shape in \(repoName): “\($0)”" }
+            ?? "A new idea is taking shape in \(repoName)."
+    }
+
+    private func issueDescription(repoName: String) -> String {
+        let title = payload.issue?.title.flatMap(nonempty)
+        if payload.action == "closed" {
+            return title.map { "One less loose end in \(repoName): “\($0)”" }
+                ?? "One less loose end in \(repoName)."
+        }
+        return title.map { "Worth a look in \(repoName): “\($0)”" }
+            ?? "A new question appeared in \(repoName)."
+    }
+
+    private func createDescription(repoName: String) -> String {
+        let kind = payload.refType ?? "project"
+        if kind == "repository" { return "Welcome to the world, \(repoName)! ✨" }
+        let name = payload.ref?.split(separator: "/").last.map(String.init)
+        return name.map { "New \(kind) in \(repoName): \($0)" }
+            ?? "A fresh \(kind) appeared in \(repoName)."
+    }
+
+    private func releaseDescription(repoName: String) -> String {
+        let releaseName = payload.release?.name.flatMap(nonempty)
+            ?? payload.release?.tagName.flatMap(nonempty)
+        return releaseName.map { "\(repoName) shipped \($0) 🚀" }
+            ?? "\(repoName) has a fresh release 🚀"
+    }
+
+    private func nonempty(_ value: String) -> String? {
+        value.isEmpty ? nil : value
     }
 }
 
