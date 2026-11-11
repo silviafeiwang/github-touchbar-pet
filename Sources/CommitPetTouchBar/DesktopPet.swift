@@ -41,6 +41,56 @@ private final class SpeechBubbleView: NSView {
     }
 }
 
+/// A small rounded bubble with a short tail, used for the hover stats.
+private final class StatPillView: NSView {
+    nonisolated static let tailHeight: CGFloat = 5
+    let label = NSTextField(labelWithString: "")
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        label.font = .systemFont(ofSize: 12, weight: .semibold)
+        label.textColor = .labelColor
+        label.alignment = .center
+        addSubview(label)
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override var isOpaque: Bool { false }
+
+    var preferredSize: NSSize {
+        let text = label.attributedStringValue.size()
+        return NSSize(width: ceil(text.width) + 20, height: 24 + Self.tailHeight)
+    }
+
+    override func layout() {
+        super.layout()
+        let textHeight = ceil(label.attributedStringValue.size().height)
+        label.frame = NSRect(
+            x: 0,
+            y: Self.tailHeight + (bounds.height - Self.tailHeight - textHeight) / 2,
+            width: bounds.width,
+            height: textHeight
+        )
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let body = NSRect(x: 0.5, y: Self.tailHeight + 0.5, width: bounds.width - 1, height: bounds.height - Self.tailHeight - 1)
+        let path = NSBezierPath(roundedRect: body, xRadius: body.height / 2, yRadius: body.height / 2)
+        path.move(to: NSPoint(x: bounds.midX - 4, y: body.minY + 0.5))
+        path.line(to: NSPoint(x: bounds.midX, y: 0.5))
+        path.line(to: NSPoint(x: bounds.midX + 4, y: body.minY + 0.5))
+        path.close()
+        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        (dark ? NSColor(calibratedWhite: 0.12, alpha: 0.94) : NSColor(calibratedWhite: 1, alpha: 0.94)).setFill()
+        path.fill()
+        NSColor.separatorColor.withAlphaComponent(0.55).setStroke()
+        path.lineWidth = 1
+        path.stroke()
+    }
+}
+
 @MainActor
 final class DesktopPetView: NSView {
     private enum Layout {
@@ -57,6 +107,11 @@ final class DesktopPetView: NSView {
     private var hideWorkItem: DispatchWorkItem?
     private var bubbleSize = NSSize.zero
     private var bubbleRevision = 0
+    private let statPills = (0..<3).map { _ in StatPillView(frame: .zero) }
+    private var showingStats = false
+    private var hoverTracking: NSTrackingArea?
+    /// Texts for the three hover bubbles, e.g. ["Lv 6", "🔥 2 days", "🌱 14 today"].
+    var statsProvider: (() -> [String])?
     var onPet: (() -> Void)?
     var onPreferredSizeChange: ((NSSize, Bool) -> Void)?
 
@@ -78,7 +133,77 @@ final class DesktopPetView: NSView {
         let click = NSClickGestureRecognizer(target: self, action: #selector(petClicked))
         ghost.addGestureRecognizer(click)
         addSubview(bubble)
+        for pill in statPills {
+            pill.isHidden = true
+            addSubview(pill)
+        }
         addSubview(ghost)
+    }
+
+    // MARK: Hover stats
+
+    private enum StatsLayout {
+        static let spacing: CGFloat = 6
+        static let arcLift: CGFloat = 8
+        static var extraHeight: CGFloat { 24 + StatPillView.tailHeight + arcLift + 4 }
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverTracking { removeTrackingArea(hoverTracking) }
+        let area = NSTrackingArea(
+            rect: ghost.frame,
+            options: [.mouseEnteredAndExited, .activeAlways],
+            owner: self
+        )
+        addTrackingArea(area)
+        hoverTracking = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        guard bubble.isHidden, let texts = statsProvider?(), texts.count == statPills.count else { return }
+        for (pill, text) in zip(statPills, texts) {
+            pill.label.stringValue = text
+            pill.frame.size = pill.preferredSize
+            pill.alphaValue = 0
+            pill.isHidden = false
+        }
+        showingStats = true
+        let rowWidth = statPills.reduce(0) { $0 + $1.frame.width } + StatsLayout.spacing * 2
+        onPreferredSizeChange?(NSSize(
+            width: max(Layout.petOnlySize.width, rowWidth + 12),
+            height: Layout.petOnlySize.height + StatsLayout.extraHeight
+        ), false)
+        needsLayout = true
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.18
+            statPills.forEach { $0.animator().alphaValue = 1 }
+        }
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        hideStats(resize: true)
+    }
+
+    private func hideStats(resize: Bool) {
+        guard showingStats else { return }
+        showingStats = false
+        statPills.forEach { $0.isHidden = true }
+        if resize && bubble.isHidden {
+            onPreferredSizeChange?(Layout.petOnlySize, false)
+        }
+    }
+
+    private func layoutStatPills() {
+        let rowWidth = statPills.reduce(0) { $0 + $1.frame.width } + StatsLayout.spacing * 2
+        var x = (bounds.width - rowWidth) / 2
+        let baseY = ghost.frame.maxY - 6
+        for (index, pill) in statPills.enumerated() {
+            // Middle bubble sits a little higher so the three form a small arc.
+            let lift = index == 1 ? StatsLayout.arcLift : 0
+            pill.frame.origin = NSPoint(x: x, y: baseY + lift)
+            x += pill.frame.width + StatsLayout.spacing
+        }
     }
 
     required init?(coder: NSCoder) { nil }
@@ -92,6 +217,9 @@ final class DesktopPetView: NSView {
             width: ghostSize.width,
             height: ghostSize.height
         )
+
+        if showingStats { layoutStatPills() }
+        updateTrackingAreas()
 
         guard !bubble.isHidden else { return }
         bubble.frame = NSRect(
@@ -120,6 +248,7 @@ final class DesktopPetView: NSView {
     }
 
     func showMessage(_ message: String, duration: TimeInterval = 12) {
+        hideStats(resize: false)
         hideWorkItem?.cancel()
         bubbleRevision += 1
         let revision = bubbleRevision
@@ -213,6 +342,14 @@ final class DesktopPetController {
 
         petView.onPreferredSizeChange = { [weak self] size, animate in
             self?.resizeWindow(to: size, animate: animate)
+        }
+        petView.statsProvider = { [weak self] in
+            guard let stats = self?.model.stats else { return [] }
+            return [
+                "Lv \(stats.level)",
+                "🔥 \(stats.streak) day\(stats.streak == 1 ? "" : "s")",
+                "🌱 \(stats.todayCount) today",
+            ]
         }
         petView.onPet = { [weak self] in
             guard let self else { return }
