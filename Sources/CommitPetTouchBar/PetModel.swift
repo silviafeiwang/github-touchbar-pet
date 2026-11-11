@@ -1,0 +1,96 @@
+import AppKit
+import Foundation
+
+@MainActor
+final class PetModel: ObservableObject {
+    @Published private(set) var stats: PetStats
+    @Published private(set) var activity: GitHubActivitySummary = .empty
+    @Published private(set) var statusMessage = "Loading GitHub activity…"
+    @Published private(set) var isRefreshing = false
+
+    let username: String
+    private let provider: any CommitPetStatsProviding
+    private let activityProvider: any GitHubActivityProviding
+    private let notifier = GitHubActivityNotifier()
+    private var timer: Timer?
+
+    init(
+        username: String = UserDefaults.standard.string(forKey: "githubUsername") ?? "silviafeiwang",
+        provider: any CommitPetStatsProviding = RemoteSVGStatsProvider(),
+        activityProvider: any GitHubActivityProviding = PublicGitHubActivityProvider()
+    ) {
+        self.username = username
+        self.provider = provider
+        self.activityProvider = activityProvider
+        self.stats = Self.loadCachedStats(username: username) ?? .placeholder(username: username)
+    }
+
+    func start() {
+        Task {
+            await notifier.requestAuthorization()
+            await refresh()
+        }
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 15 * 60, repeats: true) { [weak self] _ in
+            Task { @MainActor in await self?.refresh() }
+        }
+    }
+
+    func refresh() async {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        statusMessage = "Refreshing GitHub activity…"
+        defer { isRefreshing = false }
+
+        var messages: [String] = []
+        do {
+            let previousToday = stats.todayCount
+            stats = try await provider.fetch(username: username)
+            cache(stats)
+            messages.append(stats.todayCount > previousToday
+                ? "New contribution detected — Boo is celebrating!"
+                : "Pet stats updated")
+        } catch {
+            messages.append("cached pet stats")
+        }
+
+        do {
+            activity = try await activityProvider.fetch(username: username)
+            messages.append(activity.compactText)
+            await notifier.process(activity)
+        } catch {
+            messages.append("activity unavailable")
+        }
+
+        statusMessage = messages.joined(separator: " · ")
+        NotificationCenter.default.post(name: .commitPetStatsDidChange, object: stats)
+    }
+
+    private static func cacheURL() -> URL? {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("CommitPetTouchBar", isDirectory: true)
+            .appendingPathComponent("stats.json")
+    }
+
+    private func cache(_ stats: PetStats) {
+        guard let url = Self.cacheURL() else { return }
+        do {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try JSONEncoder().encode(stats).write(to: url, options: .atomic)
+        } catch {
+            statusMessage = "Updated, but could not save cache: \(error.localizedDescription)"
+        }
+    }
+
+    private static func loadCachedStats(username: String) -> PetStats? {
+        guard let url = cacheURL(),
+              let data = try? Data(contentsOf: url),
+              let stats = try? JSONDecoder().decode(PetStats.self, from: data),
+              stats.username == username else { return nil }
+        return stats
+    }
+}
+
+extension Notification.Name {
+    static let commitPetStatsDidChange = Notification.Name("CommitPetStatsDidChange")
+}
