@@ -21,6 +21,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         _ = persistentTouchBar.install()
         model.start()
         restoreGitHubLogin()
+        // Catch up on streak reminders after the Mac wakes instead of waiting for the next 15-minute tick.
+        observers.append(NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in await self?.model.refresh() }
+        })
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
@@ -29,6 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         authenticationTask?.cancel()
         desktopBooHotKey.unregister()
         observers.forEach(NotificationCenter.default.removeObserver)
+        observers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
         persistentTouchBar.uninstall()
     }
 
@@ -108,6 +117,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
+    @objc private func toggleStreakReminders(_ sender: NSMenuItem) {
+        model.streakGuard.isEnabled.toggle()
+        sender.state = model.streakGuard.isEnabled ? .on : .off
+    }
+
     @objc private func quit() { NSApp.terminate(nil) }
 
     private func installMenuBarItem() {
@@ -132,6 +146,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             keyEquivalent: ""
         )
         githubAccountItem = accountItem
+        let reminderItem = menu.addItem(
+            withTitle: "Remind me to keep my streak",
+            action: #selector(toggleStreakReminders(_:)),
+            keyEquivalent: ""
+        )
+        reminderItem.state = model.streakGuard.isEnabled ? .on : .off
         menu.addItem(withTitle: "Open GitHub profile", action: #selector(openProfile), keyEquivalent: "g")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Commit Pet", action: #selector(quit), keyEquivalent: "q")

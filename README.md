@@ -17,6 +17,8 @@ contributions, and yearly total in a window and the MacBook Pro Touch Bar.
 - Menu-bar controls and 15-minute refresh
 - Top repository today and this week from public GitHub events
 - Latest public GitHub activity and daily macOS notifications
+- Streak reminders: if you haven't contributed yet today, Boo gets hungry and pops
+  up on the desktop at 10:00, 15:00, 20:00, and 22:00 (each at most once a day)
 - Authenticated unread notifications for mentions, comments, reviews, and assignments
 - OAuth token stored in macOS Keychain
 - Local cached state for offline launches
@@ -46,6 +48,21 @@ shows the latest activity message; clicking Boo again dismisses the bubble.
 GitHub's public events API does not require login, but GitHub documents that its
 events can lag by 30 seconds to six hours. Connecting GitHub lets Boo read your
 unread notification inbox without marking messages as read.
+
+## Streak reminders
+
+Boo reads your contribution graph directly, so today's count and the streak are
+live instead of waiting for the once-a-day `commit-pet.svg`. When GitHub is
+connected it uses the same counts as the green squares on your profile, including
+private contributions if your profile shows them. Without a connection it
+estimates today from public events (which can lag by up to six hours) and keeps
+the streak from `commit-pet.svg`.
+
+If nothing has been contributed yet, Boo turns hungry and shows a reminder speech
+bubble on the desktop, even if desktop Boo was hidden. The
+reminders escalate through the day; after the Mac wakes, Boo shows only the
+latest one that's due. Once a contribution lands, Boo thanks you for saving the
+streak. Turn reminders off with **Remind me to keep my streak** in the 👻 menu.
 
 ## Connect GitHub
 

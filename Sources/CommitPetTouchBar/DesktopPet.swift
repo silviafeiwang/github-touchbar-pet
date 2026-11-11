@@ -240,6 +240,21 @@ final class DesktopPetController {
             }
         })
 
+        observers.append(NotificationCenter.default.addObserver(
+            forName: .commitPetStreakReminder,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            guard let message = note.object as? String else { return }
+            Task { @MainActor in
+                guard let self else { return }
+                // Pop up even if desktop Boo was hidden; the bubble stays until clicked or ~5 minutes.
+                self.window.orderFrontRegardless()
+                self.petView.update(mood: .hungry)
+                self.petView.showMessage(message, duration: 300)
+            }
+        })
+
         positionInitially()
         petView.update(mood: model.stats.mood)
     }

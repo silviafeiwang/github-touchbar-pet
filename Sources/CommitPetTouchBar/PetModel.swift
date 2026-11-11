@@ -14,6 +14,8 @@ final class PetModel: ObservableObject {
     private let activityProvider: any GitHubActivityProviding
     private let inboxProvider: GitHubInboxProvider
     private let notifier = GitHubActivityNotifier()
+    private let liveStreakProvider = LiveStreakProvider()
+    let streakGuard = StreakGuard()
     private var timer: Timer?
 
     init(
@@ -71,6 +73,8 @@ final class PetModel: ObservableObject {
             messages.append("activity unavailable")
         }
 
+        await checkStreak()
+
         if GitHubCredentialStore.loadToken() != nil {
             do {
                 let previousInboxID = inbox.latestID
@@ -92,6 +96,31 @@ final class PetModel: ObservableObject {
 
         statusMessage = messages.joined(separator: " · ")
         NotificationCenter.default.post(name: .commitPetStatsDidChange, object: stats)
+    }
+
+    /// Uses live counts from the contribution graph (the commit-pet SVG only
+    /// regenerates once a day), then lets Boo nag or celebrate.
+    private func checkStreak() async {
+        let live = await liveStreakProvider.fetch(
+            username: username,
+            fallbackEventsToday: activity.todayContributionEvents
+        )
+        let today = live.today
+        stats.todayCount = today
+        if let streak = live.streak { stats.streak = streak }
+        if streakGuard.isHungry(todayContributions: today) {
+            stats.mood = .hungry
+        }
+        cache(stats)
+
+        switch streakGuard.evaluate(todayContributions: today, streak: stats.streak) {
+        case .none:
+            break
+        case .remind(let message):
+            NotificationCenter.default.post(name: .commitPetStreakReminder, object: message)
+        case .saved(let message):
+            NotificationCenter.default.post(name: .commitPetMessage, object: message)
+        }
     }
 
     private static func cacheURL() -> URL? {
