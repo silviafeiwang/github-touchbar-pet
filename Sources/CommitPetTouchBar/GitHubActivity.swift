@@ -7,8 +7,6 @@ struct GitHubActivitySummary: Equatable, Sendable {
     var latestDescription: String?
     var todayScore: Int
     var weekScore: Int
-    /// Public events today that usually count toward the contribution graph.
-    var todayContributionEvents: Int = 0
     var refreshedAt: Date
 
     static let empty = GitHubActivitySummary(
@@ -84,17 +82,6 @@ private struct GitHubPublicEvent: Decodable, Sendable {
     enum CodingKeys: String, CodingKey {
         case id, type, repo, payload
         case createdAt = "created_at"
-    }
-
-    /// Rough match for what GitHub counts on the contribution graph.
-    var contributionCount: Int {
-        switch type {
-        case "PushEvent": max(payload.size ?? 1, 1)
-        case "PullRequestEvent", "IssuesEvent": payload.action == "opened" ? 1 : 0
-        case "PullRequestReviewEvent": 1
-        case "CreateEvent": payload.refType == "repository" ? 1 : 0
-        default: 0
-        }
     }
 
     var score: Int {
@@ -227,7 +214,6 @@ struct PublicGitHubActivityProvider: GitHubActivityProviding {
             latestDescription: latest?.description,
             todayScore: today.score,
             weekScore: week.score,
-            todayContributionEvents: todayEvents.reduce(0) { $0 + $1.contributionCount },
             refreshedAt: now
         )
     }

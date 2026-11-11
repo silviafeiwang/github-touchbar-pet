@@ -1,8 +1,10 @@
-# Commit Pet Touch Bar
+# GitHub Touch Bar Pet
 
-A native macOS companion for Commit Pet. Boo reads the public `commit-pet.svg`
-from a GitHub profile repository and mirrors its level, mood, streak, today's
-contributions, and yearly total in a window and the MacBook Pro Touch Bar.
+A native macOS pet that lives on your desktop and MacBook Pro Touch Bar and
+grows with your GitHub contributions. Boo reads your contribution graph directly,
+so there is nothing to set up in your profile: its level, mood, streak, today's
+contributions, and yearly total stay live, and Boo nudges you when today's
+square is still empty.
 
 ## Current milestone
 
@@ -51,12 +53,15 @@ unread notification inbox without marking messages as read.
 
 ## Streak reminders
 
-Boo reads your contribution graph directly, so today's count and the streak are
-live instead of waiting for the once-a-day `commit-pet.svg`. When GitHub is
-connected it uses the same counts as the green squares on your profile, including
-private contributions if your profile shows them. Without a connection it
-estimates today from public events (which can lag by up to six hours) and keeps
-the streak from `commit-pet.svg`.
+Boo reads the same counts as the green squares on your profile. Without signing
+in it uses the public profile graph; when GitHub is connected it uses the GraphQL
+API, which also includes private contributions if your profile shows them. Days
+follow GitHub's graph, and the streak isn't broken until today is over.
+
+Boo's mood comes from the graph too: **Happy** once you've contributed today,
+**Okay** in the morning after a day with contributions, **Hungry** when today is
+still empty, and **Sick** after three or more empty days in a row. Level grows
+with this year's total (20 contributions → Lv2, 80 → Lv3, 500 → Lv6).
 
 If nothing has been contributed yet, Boo turns hungry and shows a reminder speech
 bubble on the desktop, even if desktop Boo was hidden. The
@@ -105,7 +110,17 @@ The app defaults to the `silviafeiwang` GitHub profile. To use another profile:
 defaults write dev.commitpet.touchbar githubUsername YOUR_GITHUB_USERNAME
 ```
 
-The profile repository must contain `commit-pet.svg` on its `main` branch.
+To rename the pet:
+
+```bash
+defaults write dev.commitpet.touchbar petName Mochi
+```
+
+To check what Boo sees for a profile without launching the app:
+
+```bash
+swift run CommitPetTouchBar --print-stats YOUR_GITHUB_USERNAME
+```
 
 ## Roadmap
 

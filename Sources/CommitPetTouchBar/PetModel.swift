@@ -10,21 +10,22 @@ final class PetModel: ObservableObject {
     @Published private(set) var isRefreshing = false
 
     let username: String
-    private let provider: any CommitPetStatsProviding
+    private let calendarProvider: ContributionCalendarProvider
     private let activityProvider: any GitHubActivityProviding
     private let inboxProvider: GitHubInboxProvider
-    private let liveStreakProvider = LiveStreakProvider()
     let streakGuard = StreakGuard()
     private var timer: Timer?
+    private var postedStreakBubble = false
+    private var petName: String { UserDefaults.standard.string(forKey: "petName") ?? "Boo" }
 
     init(
         username: String = UserDefaults.standard.string(forKey: "githubUsername") ?? "silviafeiwang",
-        provider: any CommitPetStatsProviding = RemoteSVGStatsProvider(),
+        calendarProvider: ContributionCalendarProvider = ContributionCalendarProvider(),
         activityProvider: any GitHubActivityProviding = PublicGitHubActivityProvider(),
         inboxProvider: GitHubInboxProvider = GitHubInboxProvider()
     ) {
         self.username = username
-        self.provider = provider
+        self.calendarProvider = calendarProvider
         self.activityProvider = activityProvider
         self.inboxProvider = inboxProvider
         self.stats = Self.loadCachedStats(username: username) ?? .placeholder(username: username)
@@ -45,13 +46,16 @@ final class PetModel: ObservableObject {
         defer { isRefreshing = false }
 
         var messages: [String] = []
+        postedStreakBubble = false
         do {
             let previousToday = stats.todayCount
-            stats = try await provider.fetch(username: username)
+            let calendar = try await calendarProvider.fetch(username: username)
+            stats = PetStats.from(calendar, name: petName, username: username)
             cache(stats)
             messages.append(stats.todayCount > previousToday
                 ? "New contribution detected — Boo is celebrating!"
                 : "Pet stats updated")
+            checkStreak()
         } catch {
             messages.append("cached pet stats")
         }
@@ -60,7 +64,7 @@ final class PetModel: ObservableObject {
             let previousActivityID = activity.latestEventID
             activity = try await activityProvider.fetch(username: username)
             messages.append(activity.compactText)
-            if previousActivityID != nil, previousActivityID != activity.latestEventID {
+            if previousActivityID != nil, previousActivityID != activity.latestEventID, !postedStreakBubble {
                 let bubbleMessage = activity.latestDescription ?? activity.compactText
                 NotificationCenter.default.post(name: .commitPetMessage, object: bubbleMessage)
             }
@@ -68,9 +72,7 @@ final class PetModel: ObservableObject {
             messages.append("activity unavailable")
         }
 
-        // Report first so a streak reminder in the same refresh wins the bubble.
         showDailyReportIfNeeded()
-        await checkStreak()
 
         if GitHubCredentialStore.loadToken() != nil {
             do {
@@ -98,33 +100,23 @@ final class PetModel: ObservableObject {
     /// Once per day, Boo summarizes yesterday's adventures in a bubble.
     private func showDailyReportIfNeeded() {
         let defaults = UserDefaults.standard
-        let today = LiveStreak.dayKey(Date())
-        guard defaults.string(forKey: "lastBooDailyReport") != today else { return }
+        let today = ContributionCalendar.dayKey(Date())
+        // Skip if a streak reminder or celebration already owns the bubble this refresh.
+        guard defaults.string(forKey: "lastBooDailyReport") != today, !postedStreakBubble else { return }
         defaults.set(today, forKey: "lastBooDailyReport")
         NotificationCenter.default.post(name: .commitPetMessage, object: activity.report)
     }
 
-    /// Uses live counts from the contribution graph (the commit-pet SVG only
-    /// regenerates once a day), then lets Boo nag or celebrate.
-    private func checkStreak() async {
-        let live = await liveStreakProvider.fetch(
-            username: username,
-            fallbackEventsToday: activity.todayContributionEvents
-        )
-        let today = live.today
-        stats.todayCount = today
-        if let streak = live.streak { stats.streak = streak }
-        if streakGuard.isHungry(todayContributions: today) {
-            stats.mood = .hungry
-        }
-        cache(stats)
-
-        switch streakGuard.evaluate(todayContributions: today, streak: stats.streak) {
+    /// Lets Boo nag about an empty day or celebrate a saved streak.
+    private func checkStreak() {
+        switch streakGuard.evaluate(todayContributions: stats.todayCount, streak: stats.streak) {
         case .none:
             break
         case .remind(let message):
+            postedStreakBubble = true
             NotificationCenter.default.post(name: .commitPetStreakReminder, object: message)
         case .saved(let message):
+            postedStreakBubble = true
             NotificationCenter.default.post(name: .commitPetMessage, object: message)
         }
     }
