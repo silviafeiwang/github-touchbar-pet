@@ -7,5 +7,6 @@ void CPTouchBarRemoveSystemTrayItem(NSTouchBarItem *item);
 BOOL CPTouchBarPresentSystemModal(NSTouchBar *touchBar, NSString *trayIdentifier);
 void CPTouchBarDismissSystemModal(NSTouchBar *touchBar);
 void CPTouchBarSetCloseBoxVisible(BOOL visible);
+void CPTouchBarSetControlStripPresence(NSString *identifier, BOOL visible);
 
 NS_ASSUME_NONNULL_END

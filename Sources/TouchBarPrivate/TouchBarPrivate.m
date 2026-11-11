@@ -73,3 +73,12 @@ void CPTouchBarSetCloseBoxVisible(BOOL visible) {
     CloseBoxFunction function = (CloseBoxFunction)dlsym(RTLD_DEFAULT, "DFRSystemModalShowsCloseBoxWhenFrontMost");
     if (function) function(visible);
 }
+
+void CPTouchBarSetControlStripPresence(NSString *identifier, BOOL visible) {
+    typedef void (*PresenceFunction)(NSString *, BOOL);
+    PresenceFunction function = (PresenceFunction)dlsym(
+        RTLD_DEFAULT,
+        "DFRElementSetControlStripPresenceForIdentifier"
+    );
+    if (function) function(identifier, visible);
+}
