@@ -1,17 +1,17 @@
 import AppKit
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let model = PetModel()
     private lazy var persistentTouchBar = PersistentTouchBarController(model: model)
+    private lazy var desktopPet = DesktopPetController(model: model)
     private var window: NSWindow?
     private var statusItem: NSStatusItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.regular)
+        NSApp.setActivationPolicy(.accessory)
         NSApp.isAutomaticCustomizeTouchBarMenuItemEnabled = true
         installMenuBarItem()
-        showWindow()
         _ = persistentTouchBar.install()
         model.start()
     }
@@ -23,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func showWindow() {
+        NSApp.setActivationPolicy(.regular)
         if window == nil {
             let controller = PetViewController(model: model)
             let newWindow = PetWindow(petViewController: controller)
@@ -30,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             newWindow.setContentSize(NSSize(width: 480, height: 280))
             newWindow.styleMask = [.titled, .closable, .miniaturizable]
             newWindow.isReleasedWhenClosed = false
+            newWindow.delegate = self
             newWindow.center()
             window = newWindow
         }
@@ -37,6 +39,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         (window as? PetWindow)?.reinstallTouchBar()
     }
+
+    func windowWillClose(_ notification: Notification) {
+        DispatchQueue.main.async { NSApp.setActivationPolicy(.accessory) }
+    }
+
+    @objc private func toggleDesktopBoo() { desktopPet.toggle() }
 
     @objc private func refresh() { Task { await model.refresh() } }
 
@@ -72,7 +80,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.title = "👻"
         let menu = NSMenu()
-        menu.addItem(withTitle: "Show Boo", action: #selector(showWindow), keyEquivalent: "b")
+        menu.addItem(withTitle: "Show or hide desktop Boo", action: #selector(toggleDesktopBoo), keyEquivalent: "b")
+        menu.addItem(withTitle: "Open dashboard", action: #selector(showWindow), keyEquivalent: "d")
         menu.addItem(withTitle: "Reinstall Touch Bar Boo", action: #selector(reinstallTouchBar), keyEquivalent: "t")
         menu.addItem(withTitle: "Restore persistent Boo", action: #selector(restorePersistentBoo), keyEquivalent: "p")
         menu.addItem(withTitle: "Hide persistent Boo", action: #selector(hidePersistentBoo), keyEquivalent: "")

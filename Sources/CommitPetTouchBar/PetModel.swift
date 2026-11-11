@@ -55,9 +55,14 @@ final class PetModel: ObservableObject {
         }
 
         do {
+            let previousActivityID = activity.latestEventID
             activity = try await activityProvider.fetch(username: username)
             messages.append(activity.compactText)
             await notifier.process(activity)
+            if previousActivityID != activity.latestEventID {
+                let bubbleMessage = activity.latestDescription ?? activity.compactText
+                NotificationCenter.default.post(name: .commitPetMessage, object: bubbleMessage)
+            }
         } catch {
             messages.append("activity unavailable")
         }
@@ -93,4 +98,5 @@ final class PetModel: ObservableObject {
 
 extension Notification.Name {
     static let commitPetStatsDidChange = Notification.Name("CommitPetStatsDidChange")
+    static let commitPetMessage = Notification.Name("CommitPetMessage")
 }
