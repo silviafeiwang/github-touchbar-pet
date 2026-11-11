@@ -13,7 +13,6 @@ final class PetModel: ObservableObject {
     private let provider: any CommitPetStatsProviding
     private let activityProvider: any GitHubActivityProviding
     private let inboxProvider: GitHubInboxProvider
-    private let notifier = GitHubActivityNotifier()
     private let liveStreakProvider = LiveStreakProvider()
     let streakGuard = StreakGuard()
     private var timer: Timer?
@@ -32,10 +31,7 @@ final class PetModel: ObservableObject {
     }
 
     func start() {
-        Task {
-            await notifier.requestAuthorization()
-            await refresh()
-        }
+        Task { await refresh() }
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 15 * 60, repeats: true) { [weak self] _ in
             Task { @MainActor in await self?.refresh() }
@@ -64,8 +60,7 @@ final class PetModel: ObservableObject {
             let previousActivityID = activity.latestEventID
             activity = try await activityProvider.fetch(username: username)
             messages.append(activity.compactText)
-            await notifier.process(activity)
-            if previousActivityID != activity.latestEventID {
+            if previousActivityID != nil, previousActivityID != activity.latestEventID {
                 let bubbleMessage = activity.latestDescription ?? activity.compactText
                 NotificationCenter.default.post(name: .commitPetMessage, object: bubbleMessage)
             }
@@ -73,6 +68,8 @@ final class PetModel: ObservableObject {
             messages.append("activity unavailable")
         }
 
+        // Report first so a streak reminder in the same refresh wins the bubble.
+        showDailyReportIfNeeded()
         await checkStreak()
 
         if GitHubCredentialStore.loadToken() != nil {
@@ -96,6 +93,15 @@ final class PetModel: ObservableObject {
 
         statusMessage = messages.joined(separator: " · ")
         NotificationCenter.default.post(name: .commitPetStatsDidChange, object: stats)
+    }
+
+    /// Once per day, Boo summarizes yesterday's adventures in a bubble.
+    private func showDailyReportIfNeeded() {
+        let defaults = UserDefaults.standard
+        let today = LiveStreak.dayKey(Date())
+        guard defaults.string(forKey: "lastBooDailyReport") != today else { return }
+        defaults.set(today, forKey: "lastBooDailyReport")
+        NotificationCenter.default.post(name: .commitPetMessage, object: activity.report)
     }
 
     /// Uses live counts from the contribution graph (the commit-pet SVG only

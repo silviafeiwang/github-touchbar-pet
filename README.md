@@ -16,7 +16,7 @@ contributions, and yearly total in a window and the MacBook Pro Touch Bar.
 - Speech bubbles for recent GitHub activity
 - Menu-bar controls and 15-minute refresh
 - Top repository today and this week from public GitHub events
-- Latest public GitHub activity and daily macOS notifications
+- Latest public GitHub activity and a daily report, all as Boo speech bubbles
 - Streak reminders: if you haven't contributed yet today, Boo gets hungry and pops
   up on the desktop at 10:00, 15:00, 20:00, and 22:00 (each at most once a day)
 - Authenticated unread notifications for mentions, comments, reviews, and assignments
