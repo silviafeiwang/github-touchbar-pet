@@ -11,6 +11,9 @@ contributions, and yearly total in a window and the MacBook Pro Touch Bar.
 - Public GitHub data source; no access token required
 - Touch Bar scene using Apple's public `NSTouchBar` API
 - Persistent Boo logo in the Control Strip using dynamically resolved private APIs
+- Menu-bar-only launch with no Dock icon by default
+- Transparent, draggable desktop Boo available across Spaces
+- Speech bubbles for recent GitHub activity
 - Menu-bar controls and 15-minute refresh
 - Top repository today and this week from public GitHub events
 - Latest public GitHub activity and daily macOS notifications
@@ -25,6 +28,14 @@ them is not suitable for the Mac App Store.
 
 Tap the persistent Boo logo to open the full bar. Use the 👻 menu-bar menu to
 restore or hide it.
+
+The app starts without a Dock icon. From the 👻 menu, choose **Show or hide
+desktop Boo** to toggle the floating companion. The dashboard temporarily shows
+the app in the Dock while it is open and hides it again when closed.
+
+Desktop Boo floats over other windows, can be dragged by its transparent window,
+and shows timed message bubbles for new public GitHub activity. Clicking Boo
+replays the latest activity message.
 
 GitHub's public events API does not require login, but GitHub documents that its
 events can lag by 30 seconds to six hours. Private activity, the notification
