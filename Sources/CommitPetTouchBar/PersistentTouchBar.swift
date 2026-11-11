@@ -56,10 +56,21 @@ final class PersistentTouchBarController: NSObject {
         _ = CPTouchBarPresentSystemModal(bar, Self.trayIdentifier.rawValue)
     }
 
+    /// Closes the expanded bar and puts the 👻 icon back. On recent macOS both
+    /// minimizing and dismissing the system modal drop the Control Strip icon, so
+    /// reinstall it the same way a fresh launch does once the animation finishes.
     func collapseExpandedBar() {
-        guard let expandedBar else { return }
-        CPTouchBarDismissSystemModal(expandedBar)
-        self.expandedBar = nil
+        if let expandedBar { CPTouchBarDismissSystemModal(expandedBar) }
+        expandedBar = nil
         expandedController = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.install()
+        }
+    }
+
+    /// macOS can also drop the icon when the frontmost app changes; re-assert it.
+    func reassertPresence() {
+        guard trayItem != nil, expandedBar == nil else { return }
+        CPTouchBarSetControlStripPresence(Self.trayIdentifier.rawValue, true)
     }
 }

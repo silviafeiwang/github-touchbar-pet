@@ -21,6 +21,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         _ = persistentTouchBar.install()
         model.start()
         restoreGitHubLogin()
+        observers.append(NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.persistentTouchBar.reassertPresence() }
+        })
         // Catch up on streak reminders after the Mac wakes instead of waiting for the next 15-minute tick.
         observers.append(NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification,
