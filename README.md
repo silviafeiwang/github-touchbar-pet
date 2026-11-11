@@ -8,7 +8,7 @@ contributions, and yearly total in a window and the MacBook Pro Touch Bar.
 
 - Native Swift/AppKit application
 - Animated pixel ghost
-- Public GitHub data source; no access token required
+- Public GitHub activity without login, plus optional GitHub device authentication
 - Touch Bar scene using Apple's public `NSTouchBar` API
 - Persistent Boo logo in the Control Strip using dynamically resolved private APIs
 - Menu-bar-only launch with no Dock icon by default
@@ -17,6 +17,8 @@ contributions, and yearly total in a window and the MacBook Pro Touch Bar.
 - Menu-bar controls and 15-minute refresh
 - Top repository today and this week from public GitHub events
 - Latest public GitHub activity and daily macOS notifications
+- Authenticated unread notifications for mentions, comments, reviews, and assignments
+- OAuth token stored in macOS Keychain
 - Local cached state for offline launches
 - Terminal build that produces a clickable `.app`
 
@@ -38,9 +40,25 @@ and shows timed message bubbles for new public GitHub activity. Clicking Boo
 replays the latest activity message.
 
 GitHub's public events API does not require login, but GitHub documents that its
-events can lag by 30 seconds to six hours. Private activity, the notification
-inbox, and personalized repository news will require GitHub authentication in a
-future milestone.
+events can lag by 30 seconds to six hours. Connecting GitHub lets Boo read your
+unread notification inbox without marking messages as read.
+
+## Connect GitHub
+
+GitHub's device flow requires a public OAuth App Client ID. This is a one-time
+setup; a client secret is not required or stored.
+
+1. Choose **Connect GitHub…** from the 👻 menu.
+2. Choose **Create OAuth App**.
+3. Enter any valid homepage and callback URL, such as https://github.com.
+4. On the new OAuth App's settings page, enable **Device Flow**.
+5. Paste the Client ID into Commit Pet.
+6. Boo copies a short code and opens GitHub for approval.
+
+Commit Pet requests only **notifications** and **read:user**. It does not request
+the broad **repo** scope, so it cannot read private repository contents. The OAuth
+access token is stored in macOS Keychain and can be removed with **GitHub:
+@username ✓** → **Disconnect**.
 
 ## Touch Bar troubleshooting
 
@@ -70,10 +88,8 @@ The profile repository must contain `commit-pet.svg` on its `main` branch.
 
 ## Roadmap
 
-1. GitHub OAuth/device flow for private activity and notification-inbox news
-2. Scheduled morning/evening and weekly Boo reports
-3. Transparent desktop pet window
-4. Launch-at-login and signed/notarized releases
-5. Additional interactions and milestone animations
+1. Scheduled morning/evening and weekly Boo reports
+2. Launch-at-login and signed/notarized releases
+3. Additional interactions and milestone animations
 
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for attribution.
