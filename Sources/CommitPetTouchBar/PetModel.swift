@@ -5,23 +5,27 @@ import Foundation
 final class PetModel: ObservableObject {
     @Published private(set) var stats: PetStats
     @Published private(set) var activity: GitHubActivitySummary = .empty
+    @Published private(set) var inbox: GitHubInboxSummary = .empty
     @Published private(set) var statusMessage = "Loading GitHub activity…"
     @Published private(set) var isRefreshing = false
 
     let username: String
     private let provider: any CommitPetStatsProviding
     private let activityProvider: any GitHubActivityProviding
+    private let inboxProvider: GitHubInboxProvider
     private let notifier = GitHubActivityNotifier()
     private var timer: Timer?
 
     init(
         username: String = UserDefaults.standard.string(forKey: "githubUsername") ?? "silviafeiwang",
         provider: any CommitPetStatsProviding = RemoteSVGStatsProvider(),
-        activityProvider: any GitHubActivityProviding = PublicGitHubActivityProvider()
+        activityProvider: any GitHubActivityProviding = PublicGitHubActivityProvider(),
+        inboxProvider: GitHubInboxProvider = GitHubInboxProvider()
     ) {
         self.username = username
         self.provider = provider
         self.activityProvider = activityProvider
+        self.inboxProvider = inboxProvider
         self.stats = Self.loadCachedStats(username: username) ?? .placeholder(username: username)
     }
 
@@ -65,6 +69,25 @@ final class PetModel: ObservableObject {
             }
         } catch {
             messages.append("activity unavailable")
+        }
+
+        if GitHubCredentialStore.loadToken() != nil {
+            do {
+                let previousInboxID = inbox.latestID
+                inbox = try await inboxProvider.fetch()
+                messages.append(inbox.unreadCount == 0
+                    ? "GitHub inbox clear"
+                    : "\(inbox.unreadCount) unread GitHub notification\(inbox.unreadCount == 1 ? "" : "s")")
+                if let message = inbox.latestDescription,
+                   previousInboxID != nil,
+                   previousInboxID != inbox.latestID {
+                    NotificationCenter.default.post(name: .commitPetMessage, object: message)
+                }
+            } catch {
+                messages.append("GitHub inbox unavailable")
+            }
+        } else {
+            inbox = .empty
         }
 
         statusMessage = messages.joined(separator: " · ")

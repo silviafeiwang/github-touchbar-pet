@@ -177,7 +177,10 @@ struct PublicGitHubActivityProvider: GitHubActivityProviding {
         var request = URLRequest(url: url)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("2026-03-10", forHTTPHeaderField: "X-GitHub-Api-Version")
-        request.setValue("CommitPetTouchBar/0.2", forHTTPHeaderField: "User-Agent")
+        request.setValue("CommitPetTouchBar/0.4", forHTTPHeaderField: "User-Agent")
+        if let token = GitHubCredentialStore.loadToken() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
         request.cachePolicy = .reloadIgnoringLocalCacheData
         request.timeoutInterval = 20
 
