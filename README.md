@@ -124,9 +124,9 @@ swift run CommitPetTouchBar --print-stats YOUR_GITHUB_USERNAME
 
 ## Profile README card
 
-The repository is also a GitHub Action that draws Boo's card for a profile
-README with exactly the same rules as the desktop app. Add a workflow to your
-`<username>/<username>` repository:
+`profile-card/` draws Boo's card for a profile README with exactly the same
+rules as the desktop app. Add this workflow to your `<username>/<username>`
+repository, replacing `YOUR_USERNAME` and the time zone:
 
 ```yaml
 name: Boo
@@ -141,9 +141,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: silviafeiwang/github-touchbar-pet@main
-        with:
-          timezone: America/Vancouver
+      - name: Get the card generator
+        run: git clone --depth 1 https://github.com/silviafeiwang/github-touchbar-pet.git "$RUNNER_TEMP/pet"
+      - name: Render card
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node "$RUNNER_TEMP/pet/profile-card/generate.js" \
+            --user YOUR_USERNAME --name Boo --species ghost \
+            --tz America/Vancouver --out commit-pet.svg
+      - name: Commit card if it changed
+        run: |
+          git add commit-pet.svg
+          git diff --cached --quiet && exit 0
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Update Boo 👻'
+          git push
 ```
 
 Then show it with `![Boo](commit-pet.svg)`. Preview locally with
