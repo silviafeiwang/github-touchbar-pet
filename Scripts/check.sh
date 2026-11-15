@@ -21,3 +21,4 @@ export SWIFTPM_MODULECACHE_OVERRIDE="$project_dir/.build/swift-module-cache"
 export SDKROOT="$sdk_path"
 
 swift run --disable-sandbox --sdk "$sdk_path" CommitPetTouchBar --self-test
+node --test profile-card/*.test.js

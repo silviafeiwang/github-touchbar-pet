@@ -125,14 +125,16 @@ swift run CommitPetTouchBar --print-stats YOUR_GITHUB_USERNAME
 ## Profile README card
 
 `profile-card/` draws Boo's card for a profile README with exactly the same
-rules as the desktop app. Add this workflow to your `<username>/<username>`
-repository, replacing `YOUR_USERNAME` and the time zone:
+rules as the desktop app. The generator also changes the image's `?v=` value
+only when the SVG changes, preventing GitHub's image cache from showing an old
+pet. Add this workflow to your `<username>/<username>` repository, replacing
+`YOUR_USERNAME` and the time zone:
 
 ```yaml
 name: Boo
 on:
   schedule:
-    - cron: "7 * * * *"   # hourly
+    - cron: "7,22,37,52 * * * *"   # every 15 minutes
   workflow_dispatch:
 permissions:
   contents: write
@@ -149,10 +151,11 @@ jobs:
         run: |
           node "$RUNNER_TEMP/pet/profile-card/generate.js" \
             --user YOUR_USERNAME --name Boo --species ghost \
-            --tz America/Vancouver --out commit-pet.svg
+            --tz America/Vancouver --out commit-pet.svg \
+            --readme README.md
       - name: Commit card if it changed
         run: |
-          git add commit-pet.svg
+          git add commit-pet.svg README.md
           git diff --cached --quiet && exit 0
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -160,7 +163,9 @@ jobs:
           git push
 ```
 
-Then show it with `![Boo](commit-pet.svg)`. Preview locally with
+Then show it with `![Boo](commit-pet.svg)`. Scheduled Actions can start later
+than their requested time, so 15 minutes is a target rather than a guarantee.
+Preview locally with
 `GITHUB_TOKEN=$(gh auth token) node profile-card/generate.js --user NAME --tz Area/City`.
 
 ## Roadmap

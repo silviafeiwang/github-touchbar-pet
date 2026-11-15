@@ -3,10 +3,12 @@
 
 // Renders Boo's profile card with the same rules as the desktop app.
 // Usage: node generate.js --user NAME --name Boo --species ghost --out commit-pet.svg
-//        [--tz America/Vancouver] [--demo]   (TZ decides what "today" is)
+//        [--readme README.md] [--tz America/Vancouver] [--demo]
+//        (TZ decides what "today" is; --readme cache-busts the image URL)
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { buildCard } = require('./card');
 const { computeStats } = require('./stats');
 
@@ -50,6 +52,36 @@ async function fetchDailyCounts(username, token) {
   return counts;
 }
 
+function updateReadmeImage(readmePath, imagePath, svg) {
+  const resolvedReadme = path.resolve(readmePath);
+  const relativeImage = path.relative(path.dirname(resolvedReadme), path.resolve(imagePath))
+    .split(path.sep).join('/').replace(/^\.\//, '');
+  const version = crypto.createHash('sha256').update(svg).digest('hex').slice(0, 12);
+  const markdown = fs.readFileSync(resolvedReadme, 'utf8');
+  let found = false;
+
+  const updated = markdown.replace(
+    /(!\[[^\]\r\n]*\]\(\s*)(<?)([^)\s>]+)(>?)([^)\r\n]*\))/g,
+    (match, prefix, openingBracket, target, closingBracket, suffix) => {
+      const hashAt = target.indexOf('#');
+      const fragment = hashAt >= 0 ? target.slice(hashAt) : '';
+      const withoutFragment = hashAt >= 0 ? target.slice(0, hashAt) : target;
+      const bareTarget = withoutFragment.split('?')[0];
+      const normalizedTarget = path.posix.normalize(bareTarget).replace(/^\.\//, '');
+      if (normalizedTarget !== relativeImage) return match;
+
+      found = true;
+      return `${prefix}${openingBracket}${bareTarget}?v=${version}${fragment}${closingBracket}${suffix}`;
+    },
+  );
+
+  if (!found) {
+    throw new Error(`No Markdown image for "${relativeImage}" found in ${readmePath}.`);
+  }
+  if (updated !== markdown) fs.writeFileSync(resolvedReadme, updated, 'utf8');
+  return version;
+}
+
 async function main() {
   const args = parseArgs(process.argv);
   const username = args.user || 'octocat';
@@ -64,7 +96,15 @@ async function main() {
   const out = args.out || 'commit-pet.svg';
   fs.mkdirSync(path.dirname(path.resolve(out)), { recursive: true });
   fs.writeFileSync(out, svg, 'utf8');
+  if (args.readme) {
+    const version = updateReadmeImage(args.readme, out, svg);
+    console.log(`updated ${args.readme}: ${out}?v=${version}`);
+  }
   console.log(`wrote ${out}: Lv${stats.level} ${stats.mood} streak=${stats.streak} today=${stats.todayCount} total=${stats.total}`);
 }
 
-main().catch((e) => { console.error(e.message || e); process.exit(1); });
+if (require.main === module) {
+  main().catch((e) => { console.error(e.message || e); process.exit(1); });
+}
+
+module.exports = { parseArgs, localNow, fetchDailyCounts, updateReadmeImage, main };
