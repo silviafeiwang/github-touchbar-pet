@@ -33,18 +33,35 @@ if CommandLine.arguments.contains("--self-test") {
     precondition(PetStats.from(graph([key(5): 1]), name: "Boo", username: "x", now: now).mood == .sick)
 
     let laptopScreen = NSRect(x: 0, y: 0, width: 1000, height: 800)
-    let visibleBoo = NSRect(x: 820, y: 32, width: 154, height: 126)
+    let visibleBoo = NSRect(origin: NSPoint(x: 900, y: 32), size: DesktopPetView.petOnlySize)
     precondition(DesktopPetController.recoveredFrame(
         visibleBoo,
         visibleFrames: [laptopScreen],
         preferredVisibleFrame: laptopScreen
     ) == visibleBoo)
     let recoveredBoo = DesktopPetController.recoveredFrame(
-        NSRect(x: 1400, y: 40, width: 154, height: 126),
+        NSRect(origin: NSPoint(x: 1400, y: 40), size: DesktopPetView.petOnlySize),
         visibleFrames: [laptopScreen],
         preferredVisibleFrame: laptopScreen
     )
     precondition(laptopScreen.contains(recoveredBoo))
+
+    let cornerBoo = NSRect(
+        origin: NSPoint(x: laptopScreen.maxX - DesktopPetView.petOnlySize.width, y: laptopScreen.minY),
+        size: DesktopPetView.petOnlySize
+    )
+    let expandedBoo = DesktopPetController.resizedFrame(
+        cornerBoo,
+        to: NSSize(width: 260, height: 130),
+        within: laptopScreen
+    )
+    precondition(expandedBoo.maxX == laptopScreen.maxX && expandedBoo.minY == laptopScreen.minY)
+    let collapsedBoo = DesktopPetController.resizedFrame(
+        expandedBoo,
+        to: DesktopPetView.petOnlySize,
+        within: laptopScreen
+    )
+    precondition(collapsedBoo.maxX == laptopScreen.maxX && collapsedBoo.minY == laptopScreen.minY)
     print("CommitPetTouchBar self-test passed")
 } else if let index = CommandLine.arguments.firstIndex(of: "--print-stats") {
     // Debug helper: fetch the public contribution graph and print Boo's stats.

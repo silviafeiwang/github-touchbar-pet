@@ -93,8 +93,9 @@ private final class StatPillView: NSView {
 
 @MainActor
 final class DesktopPetView: NSView {
+    static let petOnlySize = NSSize(width: 64, height: 60)
+
     private enum Layout {
-        static let petOnlySize = NSSize(width: 154, height: 126)
         static let maximumTextWidth: CGFloat = 238
         static let bubbleHorizontalPadding: CGFloat = 28
         static let bubbleVerticalPadding: CGFloat = 27
@@ -119,6 +120,7 @@ final class DesktopPetView: NSView {
         super.init(frame: frameRect)
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor
+        ghost.usesTightBounds = true
 
         bubble.wantsLayer = true
         bubble.isHidden = true
@@ -171,8 +173,8 @@ final class DesktopPetView: NSView {
         showingStats = true
         let rowWidth = statPills.reduce(0) { $0 + $1.frame.width } + StatsLayout.spacing * 2
         onPreferredSizeChange?(NSSize(
-            width: max(Layout.petOnlySize.width, rowWidth + 12),
-            height: Layout.petOnlySize.height + StatsLayout.extraHeight
+            width: max(Self.petOnlySize.width, rowWidth + 12),
+            height: Self.petOnlySize.height + StatsLayout.extraHeight
         ), false)
         needsLayout = true
         NSAnimationContext.runAnimationGroup { context in
@@ -190,7 +192,7 @@ final class DesktopPetView: NSView {
         showingStats = false
         statPills.forEach { $0.isHidden = true }
         if resize && bubble.isHidden {
-            onPreferredSizeChange?(Layout.petOnlySize, false)
+            onPreferredSizeChange?(Self.petOnlySize, false)
         }
     }
 
@@ -210,10 +212,10 @@ final class DesktopPetView: NSView {
 
     override func layout() {
         super.layout()
-        let ghostSize = NSSize(width: 135, height: 118)
+        let ghostSize = Self.petOnlySize
         ghost.frame = NSRect(
             x: (bounds.width - ghostSize.width) / 2,
-            y: 2,
+            y: 0,
             width: ghostSize.width,
             height: ghostSize.height
         )
@@ -257,8 +259,8 @@ final class DesktopPetView: NSView {
         bubble.isHidden = false
         bubble.alphaValue = 1
         let size = NSSize(
-            width: max(Layout.petOnlySize.width, bubbleSize.width + 18),
-            height: Layout.petOnlySize.height + bubbleSize.height
+            width: max(Self.petOnlySize.width, bubbleSize.width + 18),
+            height: Self.petOnlySize.height + bubbleSize.height
         )
         onPreferredSizeChange?(size, true)
         needsLayout = true
@@ -285,7 +287,7 @@ final class DesktopPetView: NSView {
             Task { @MainActor in
                 guard let self, revision == self.bubbleRevision else { return }
                 self.bubble.isHidden = true
-                self.onPreferredSizeChange?(Layout.petOnlySize, true)
+                self.onPreferredSizeChange?(Self.petOnlySize, true)
             }
         }
     }
@@ -323,7 +325,7 @@ final class DesktopPetController {
 
     init(model: PetModel) {
         self.model = model
-        let initialSize = NSSize(width: 154, height: 126)
+        let initialSize = DesktopPetView.petOnlySize
         petView = DesktopPetView(frame: NSRect(origin: .zero, size: initialSize))
         window = NSPanel(
             contentRect: NSRect(origin: .zero, size: initialSize),
@@ -496,21 +498,45 @@ final class DesktopPetController {
 
     private func resizeWindow(to size: NSSize, animate: Bool) {
         let oldFrame = window.frame
-        var newFrame = NSRect(
+        if let visibleFrame = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame {
+            window.setFrame(
+                Self.resizedFrame(oldFrame, to: size, within: visibleFrame),
+                display: true,
+                animate: animate
+            )
+            return
+        }
+        let newFrame = NSRect(
             x: oldFrame.midX - size.width / 2,
             y: oldFrame.minY,
             width: size.width,
             height: size.height
         )
-        if let visibleFrame = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame {
-            newFrame.origin.x = min(max(newFrame.minX, visibleFrame.minX), visibleFrame.maxX - newFrame.width)
-            newFrame.origin.y = min(max(newFrame.minY, visibleFrame.minY), visibleFrame.maxY - newFrame.height)
-        }
         window.setFrame(newFrame, display: true, animate: animate)
+    }
+
+    static func resizedFrame(_ oldFrame: NSRect, to size: NSSize, within visibleFrame: NSRect) -> NSRect {
+        let edgeTolerance: CGFloat = 1
+        let x: CGFloat
+        if abs(oldFrame.maxX - visibleFrame.maxX) <= edgeTolerance {
+            x = visibleFrame.maxX - size.width
+        } else if abs(oldFrame.minX - visibleFrame.minX) <= edgeTolerance {
+            x = visibleFrame.minX
+        } else {
+            x = oldFrame.midX - size.width / 2
+        }
+
+        let y = abs(oldFrame.maxY - visibleFrame.maxY) <= edgeTolerance
+            ? visibleFrame.maxY - size.height
+            : oldFrame.minY
+        var resized = NSRect(origin: NSPoint(x: x, y: y), size: size)
+        resized.origin.x = min(max(resized.minX, visibleFrame.minX), visibleFrame.maxX - resized.width)
+        resized.origin.y = min(max(resized.minY, visibleFrame.minY), visibleFrame.maxY - resized.height)
+        return resized
     }
 
     private func positionInitially() {
         guard let frame = NSScreen.main?.visibleFrame else { return }
-        window.setFrameOrigin(NSPoint(x: frame.maxX - window.frame.width - 28, y: frame.minY + 32))
+        window.setFrameOrigin(NSPoint(x: frame.maxX - window.frame.width, y: frame.minY))
     }
 }

@@ -3,6 +3,7 @@ import AppKit
 final class PixelGhostView: NSView {
     var mood: PetMood = .content { didSet { needsDisplay = true } }
     var isCompact = false { didSet { needsDisplay = true } }
+    var usesTightBounds = false { didSet { needsDisplay = true } }
     var celebrating = false
 
     private var phase: CGFloat = 0
@@ -30,13 +31,22 @@ final class PixelGhostView: NSView {
         context.setShouldAntialias(false)
 
         let bounce = sin(phase) * (celebrating ? 4 : 1.5)
-        let targetSize = min(bounds.height * 0.78, bounds.width * (isCompact ? 0.52 : 0.7))
-        let pixel = max(1, floor(targetSize / 12))
+        let pixel: CGFloat
+        if usesTightBounds {
+            // The visible ghost spans 10 pixels horizontally and 8 vertically.
+            // Keep just enough vertical room for the celebration bounce so the
+            // desktop panel can sit close to a screen edge without looking inset.
+            pixel = max(1, floor(min((bounds.width - 4) / 10, (bounds.height - 12) / 8)))
+        } else {
+            let targetSize = min(bounds.height * 0.78, bounds.width * (isCompact ? 0.52 : 0.7))
+            pixel = max(1, floor(targetSize / 12))
+        }
         let bodyWidth = pixel * 10
-        let bodyHeight = pixel * 10
+        let bodyHeight = pixel * (usesTightBounds ? 8 : 10)
         let origin = CGPoint(
             x: bounds.midX - bodyWidth / 2,
-            y: bounds.midY - bodyHeight / 2 + bounce
+            // The first visible row starts at y=1 in the 10×10 sprite grid.
+            y: bounds.midY - bodyHeight / 2 - (usesTightBounds ? pixel : 0) + bounce
         )
 
         let bodyColor: NSColor = switch mood {
