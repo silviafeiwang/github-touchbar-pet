@@ -1,5 +1,20 @@
 import AppKit
 
+private final class DesktopPetPanel: NSPanel {
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        guard let screen else { return frameRect }
+        let screenFrame = screen.frame
+        var constrained = frameRect
+        constrained.origin.x = screenFrame.width >= constrained.width
+            ? min(max(constrained.minX, screenFrame.minX), screenFrame.maxX - constrained.width)
+            : screenFrame.minX
+        constrained.origin.y = screenFrame.height >= constrained.height
+            ? min(max(constrained.minY, screenFrame.minY), screenFrame.maxY - constrained.height)
+            : screenFrame.minY
+        return constrained
+    }
+}
+
 private final class SpeechBubbleView: NSView {
     override var isOpaque: Bool { false }
 
@@ -93,7 +108,7 @@ private final class StatPillView: NSView {
 
 @MainActor
 final class DesktopPetView: NSView {
-    static let petOnlySize = NSSize(width: 64, height: 60)
+    static let petOnlySize = NSSize(width: 56, height: 52)
 
     private enum Layout {
         static let maximumTextWidth: CGFloat = 238
@@ -327,7 +342,7 @@ final class DesktopPetController {
         self.model = model
         let initialSize = DesktopPetView.petOnlySize
         petView = DesktopPetView(frame: NSRect(origin: .zero, size: initialSize))
-        window = NSPanel(
+        window = DesktopPetPanel(
             contentRect: NSRect(origin: .zero, size: initialSize),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
@@ -445,12 +460,12 @@ final class DesktopPetController {
     }
 
     private func recoverWindowOntoCurrentScreens() {
-        let visibleFrames = NSScreen.screens.map(\.visibleFrame)
-        guard !visibleFrames.isEmpty else { return }
+        let screenFrames = NSScreen.screens.map(\.frame)
+        guard !screenFrames.isEmpty else { return }
         let recovered = Self.recoveredFrame(
             window.frame,
-            visibleFrames: visibleFrames,
-            preferredVisibleFrame: NSScreen.main?.visibleFrame
+            screenFrames: screenFrames,
+            preferredScreenFrame: NSScreen.main?.frame
         )
         if recovered != window.frame {
             window.setFrame(recovered, display: true)
@@ -459,25 +474,25 @@ final class DesktopPetController {
 
     static func recoveredFrame(
         _ frame: NSRect,
-        visibleFrames: [NSRect],
-        preferredVisibleFrame: NSRect?
+        screenFrames: [NSRect],
+        preferredScreenFrame: NSRect?
     ) -> NSRect {
-        guard !visibleFrames.isEmpty else { return frame }
+        guard !screenFrames.isEmpty else { return frame }
 
-        if visibleFrames.contains(where: { $0.contains(frame) }) {
+        if screenFrames.contains(where: { $0.contains(frame) }) {
             return frame
         }
 
-        let overlappingFrame = visibleFrames.max { left, right in
+        let overlappingFrame = screenFrames.max { left, right in
             intersectionArea(frame, left) < intersectionArea(frame, right)
         }
         let target: NSRect
         if let overlappingFrame, intersectionArea(frame, overlappingFrame) > 0 {
             target = overlappingFrame
-        } else if let preferredVisibleFrame {
-            target = preferredVisibleFrame
+        } else if let preferredScreenFrame {
+            target = preferredScreenFrame
         } else {
-            target = visibleFrames[0]
+            target = screenFrames[0]
         }
 
         var recovered = frame
@@ -498,9 +513,9 @@ final class DesktopPetController {
 
     private func resizeWindow(to size: NSSize, animate: Bool) {
         let oldFrame = window.frame
-        if let visibleFrame = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame {
+        if let screenFrame = window.screen?.frame ?? NSScreen.main?.frame {
             window.setFrame(
-                Self.resizedFrame(oldFrame, to: size, within: visibleFrame),
+                Self.resizedFrame(oldFrame, to: size, within: screenFrame),
                 display: true,
                 animate: animate
             )
@@ -515,28 +530,28 @@ final class DesktopPetController {
         window.setFrame(newFrame, display: true, animate: animate)
     }
 
-    static func resizedFrame(_ oldFrame: NSRect, to size: NSSize, within visibleFrame: NSRect) -> NSRect {
+    static func resizedFrame(_ oldFrame: NSRect, to size: NSSize, within screenFrame: NSRect) -> NSRect {
         let edgeTolerance: CGFloat = 1
         let x: CGFloat
-        if abs(oldFrame.maxX - visibleFrame.maxX) <= edgeTolerance {
-            x = visibleFrame.maxX - size.width
-        } else if abs(oldFrame.minX - visibleFrame.minX) <= edgeTolerance {
-            x = visibleFrame.minX
+        if abs(oldFrame.maxX - screenFrame.maxX) <= edgeTolerance {
+            x = screenFrame.maxX - size.width
+        } else if abs(oldFrame.minX - screenFrame.minX) <= edgeTolerance {
+            x = screenFrame.minX
         } else {
             x = oldFrame.midX - size.width / 2
         }
 
-        let y = abs(oldFrame.maxY - visibleFrame.maxY) <= edgeTolerance
-            ? visibleFrame.maxY - size.height
+        let y = abs(oldFrame.maxY - screenFrame.maxY) <= edgeTolerance
+            ? screenFrame.maxY - size.height
             : oldFrame.minY
         var resized = NSRect(origin: NSPoint(x: x, y: y), size: size)
-        resized.origin.x = min(max(resized.minX, visibleFrame.minX), visibleFrame.maxX - resized.width)
-        resized.origin.y = min(max(resized.minY, visibleFrame.minY), visibleFrame.maxY - resized.height)
+        resized.origin.x = min(max(resized.minX, screenFrame.minX), screenFrame.maxX - resized.width)
+        resized.origin.y = min(max(resized.minY, screenFrame.minY), screenFrame.maxY - resized.height)
         return resized
     }
 
     private func positionInitially() {
-        guard let frame = NSScreen.main?.visibleFrame else { return }
+        guard let frame = NSScreen.main?.frame else { return }
         window.setFrameOrigin(NSPoint(x: frame.maxX - window.frame.width, y: frame.minY))
     }
 }

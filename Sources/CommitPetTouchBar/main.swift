@@ -36,13 +36,13 @@ if CommandLine.arguments.contains("--self-test") {
     let visibleBoo = NSRect(origin: NSPoint(x: 900, y: 32), size: DesktopPetView.petOnlySize)
     precondition(DesktopPetController.recoveredFrame(
         visibleBoo,
-        visibleFrames: [laptopScreen],
-        preferredVisibleFrame: laptopScreen
+        screenFrames: [laptopScreen],
+        preferredScreenFrame: laptopScreen
     ) == visibleBoo)
     let recoveredBoo = DesktopPetController.recoveredFrame(
         NSRect(origin: NSPoint(x: 1400, y: 40), size: DesktopPetView.petOnlySize),
-        visibleFrames: [laptopScreen],
-        preferredVisibleFrame: laptopScreen
+        screenFrames: [laptopScreen],
+        preferredScreenFrame: laptopScreen
     )
     precondition(laptopScreen.contains(recoveredBoo))
 
