@@ -31,6 +31,20 @@ if CommandLine.arguments.contains("--self-test") {
     precondition(graph([key(2): 5]).streak(endingAt: now) == 0)
     precondition(PetStats.from(graph([key(0): 1]), name: "Boo", username: "x", now: now).mood == .happy)
     precondition(PetStats.from(graph([key(5): 1]), name: "Boo", username: "x", now: now).mood == .sick)
+
+    let laptopScreen = NSRect(x: 0, y: 0, width: 1000, height: 800)
+    let visibleBoo = NSRect(x: 820, y: 32, width: 154, height: 126)
+    precondition(DesktopPetController.recoveredFrame(
+        visibleBoo,
+        visibleFrames: [laptopScreen],
+        preferredVisibleFrame: laptopScreen
+    ) == visibleBoo)
+    let recoveredBoo = DesktopPetController.recoveredFrame(
+        NSRect(x: 1400, y: 40, width: 154, height: 126),
+        visibleFrames: [laptopScreen],
+        preferredVisibleFrame: laptopScreen
+    )
+    precondition(laptopScreen.contains(recoveredBoo))
     print("CommitPetTouchBar self-test passed")
 } else if let index = CommandLine.arguments.firstIndex(of: "--print-stats") {
     // Debug helper: fetch the public contribution graph and print Boo's stats.

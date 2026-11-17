@@ -40,6 +40,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        desktopPet.show()
+        return false
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         authenticationTask?.cancel()
         desktopBooHotKey.unregister()

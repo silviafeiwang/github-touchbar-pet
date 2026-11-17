@@ -392,12 +392,30 @@ final class DesktopPetController {
             }
         })
 
+        observers.append(NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.restoreVisibleWindowAfterEnvironmentChange() }
+        })
+        observers.append(NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.restoreVisibleWindowAfterEnvironmentChange() }
+        })
+
         positionInitially()
         petView.update(mood: model.stats.mood)
     }
 
     deinit {
-        for observer in observers { NotificationCenter.default.removeObserver(observer) }
+        for observer in observers {
+            NotificationCenter.default.removeObserver(observer)
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+        }
     }
 
     var isVisible: Bool { window.isVisible }
@@ -407,12 +425,73 @@ final class DesktopPetController {
     }
 
     func show() {
+        recoverWindowOntoCurrentScreens()
         window.orderFrontRegardless()
         petView.showMessage(model.activity.report)
     }
 
     func hide() {
         window.orderOut(nil)
+    }
+
+    private func restoreVisibleWindowAfterEnvironmentChange() {
+        // Respect an intentional hide. If Boo was showing before sleep or a display
+        // was disconnected, bring the existing panel back onto a current screen.
+        guard window.isVisible else { return }
+        recoverWindowOntoCurrentScreens()
+        window.orderFrontRegardless()
+    }
+
+    private func recoverWindowOntoCurrentScreens() {
+        let visibleFrames = NSScreen.screens.map(\.visibleFrame)
+        guard !visibleFrames.isEmpty else { return }
+        let recovered = Self.recoveredFrame(
+            window.frame,
+            visibleFrames: visibleFrames,
+            preferredVisibleFrame: NSScreen.main?.visibleFrame
+        )
+        if recovered != window.frame {
+            window.setFrame(recovered, display: true)
+        }
+    }
+
+    static func recoveredFrame(
+        _ frame: NSRect,
+        visibleFrames: [NSRect],
+        preferredVisibleFrame: NSRect?
+    ) -> NSRect {
+        guard !visibleFrames.isEmpty else { return frame }
+
+        if visibleFrames.contains(where: { $0.contains(frame) }) {
+            return frame
+        }
+
+        let overlappingFrame = visibleFrames.max { left, right in
+            intersectionArea(frame, left) < intersectionArea(frame, right)
+        }
+        let target: NSRect
+        if let overlappingFrame, intersectionArea(frame, overlappingFrame) > 0 {
+            target = overlappingFrame
+        } else if let preferredVisibleFrame {
+            target = preferredVisibleFrame
+        } else {
+            target = visibleFrames[0]
+        }
+
+        var recovered = frame
+        recovered.origin.x = target.width >= recovered.width
+            ? min(max(recovered.minX, target.minX), target.maxX - recovered.width)
+            : target.minX
+        recovered.origin.y = target.height >= recovered.height
+            ? min(max(recovered.minY, target.minY), target.maxY - recovered.height)
+            : target.minY
+        return recovered
+    }
+
+    private static func intersectionArea(_ left: NSRect, _ right: NSRect) -> CGFloat {
+        let intersection = left.intersection(right)
+        guard !intersection.isNull, !intersection.isEmpty else { return 0 }
+        return intersection.width * intersection.height
     }
 
     private func resizeWindow(to size: NSSize, animate: Bool) {
