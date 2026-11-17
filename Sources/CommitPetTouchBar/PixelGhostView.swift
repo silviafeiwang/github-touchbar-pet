@@ -5,6 +5,7 @@ final class PixelGhostView: NSView {
     var isCompact = false { didSet { needsDisplay = true } }
     var usesTightBounds = false { didSet { needsDisplay = true } }
     var celebrating = false
+    var onMouseDown: ((NSEvent) -> Void)?
 
     private var phase: CGFloat = 0
     nonisolated(unsafe) private var animationTimer: Timer?
@@ -24,6 +25,10 @@ final class PixelGhostView: NSView {
     required init?(coder: NSCoder) { nil }
 
     deinit { animationTimer?.invalidate() }
+
+    override func mouseDown(with event: NSEvent) {
+        if let onMouseDown { onMouseDown(event) } else { super.mouseDown(with: event) }
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)

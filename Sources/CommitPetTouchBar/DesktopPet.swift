@@ -147,8 +147,7 @@ final class DesktopPetView: NSView {
         messageLabel.lineBreakMode = .byWordWrapping
         bubble.addSubview(messageLabel)
 
-        let click = NSClickGestureRecognizer(target: self, action: #selector(petClicked))
-        ghost.addGestureRecognizer(click)
+        ghost.onMouseDown = { [weak self] event in self?.handlePetMouseDown(event) }
         addSubview(bubble)
         for pill in statPills {
             pill.isHidden = true
@@ -321,13 +320,46 @@ final class DesktopPetView: NSView {
         )
     }
 
-    @objc private func petClicked() {
+    private func petClicked() {
         if !bubble.isHidden {
             dismissMessage()
             return
         }
         celebrate()
         onPet?()
+    }
+
+    private func handlePetMouseDown(_ event: NSEvent) {
+        guard let window else { return }
+        let startMouse = window.convertPoint(toScreen: event.locationInWindow)
+        let startOrigin = window.frame.origin
+        var didDrag = false
+
+        window.trackEvents(
+            matching: [.leftMouseDragged, .leftMouseUp],
+            timeout: .infinity,
+            mode: .eventTracking
+        ) { nextEvent, stop in
+            guard let nextEvent else {
+                stop.pointee = true
+                return
+            }
+            guard nextEvent.type == .leftMouseDragged else {
+                stop.pointee = true
+                return
+            }
+
+            let mouse = window.convertPoint(toScreen: nextEvent.locationInWindow)
+            let delta = NSPoint(x: mouse.x - startMouse.x, y: mouse.y - startMouse.y)
+            if abs(delta.x) > 2 || abs(delta.y) > 2 { didDrag = true }
+            guard didDrag else { return }
+
+            var frame = window.frame
+            frame.origin = NSPoint(x: startOrigin.x + delta.x, y: startOrigin.y + delta.y)
+            let constrained = window.constrainFrameRect(frame, to: window.screen)
+            window.setFrameOrigin(constrained.origin)
+        }
+        if !didDrag { petClicked() }
     }
 }
 
